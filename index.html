@@ -49,6 +49,10 @@
   .who{font-size:15px; font-weight:600;}
   .orders-mini{font-size:11px; color:var(--hint); margin-top:3px;}
   .track-line{margin-top:10px; padding:8px 10px; border-radius:var(--radius-sm); background:var(--panel2); font-size:13px;}
+  .order-info{margin-top:10px; padding:9px 11px; border-radius:var(--radius-sm); background:var(--panel2); display:flex; flex-direction:column; gap:3px;}
+  .oi-row{display:flex; gap:8px; font-size:12px;}
+  .oi-k{color:var(--muted); min-width:44px;}
+  .oi-v{color:var(--txt);}
   .eta-ok{color:var(--success);} .eta-no{color:var(--warn);}
 
   .call-zone{margin-top:10px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--panel2); display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px;}
@@ -171,8 +175,15 @@ function render(){
     const drv = DRIVERS[d]; const st = state[d];
     const card = document.createElement('div'); card.className='card untracked';
     let h = '<div class="top"><div><span class="who">👤 '+drv.name+' 기사</span>'
-      + '<div class="orders-mini">'+ordersOf(d).map(o=>o.id+'('+o.dest+')').join(', ')+'</div></div></div>'
-      + '<div class="track-line eta-no">❓ <b>위치 미확인</b> · 앱 미연동 — 전화로 확인</div>';
+      + '<div class="orders-mini">'+ordersOf(d).map(o=>o.id+'('+o.dest+')').join(', ')+'</div></div></div>';
+
+    h += '<div class="order-info">'
+      + '<div class="oi-row"><span class="oi-k">차량</span><span class="oi-v">'+(drv.vehicleNo||'-')+' · '+(drv.tonnage||'-')+'</span></div>'
+      + '<div class="oi-row"><span class="oi-k">상차지</span><span class="oi-v">'+(drv.pickup||'-')+' (접안 '+(drv.pickupTime||'-')+')</span></div>'
+      + '<div class="oi-row"><span class="oi-k">하차지</span><span class="oi-v">'+(drv.dropoff||'-')+' (접안 '+(drv.dropoffTime||'-')+')</span></div>'
+      + '</div>';
+
+    h += '<div class="track-line eta-no">❓ <b>위치 미확인</b> · 앱 미연동 — 전화로 확인</div>';
 
     h += '<div class="call-zone">';
     if(st==='idle'){
