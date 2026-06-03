@@ -116,8 +116,14 @@ const DRIVERS = {
   D1:{name:"김성호", tracked:true,  eta:"14:35", loc:"분당 수내IC 부근"},
   D2:{name:"이재민", tracked:true,  eta:"15:02", loc:"용인 신갈JC 통과"},
   D3:{name:"박동우", tracked:true,  eta:"15:20", loc:"김포 고촌 진입"},
-  D4:{name:"최영규", tracked:false},
-  D5:{name:"정한솔", tracked:false},
+  D4:{name:"최영규", tracked:false,
+      vehicleNo:"12가3456", tonnage:"5톤",
+      pickup:"평택항", pickupTime:"13:00",
+      dropoff:"인천1센터", dropoffTime:"15:00"},
+  D5:{name:"정한솔", tracked:false,
+      vehicleNo:"78나9012", tonnage:"11톤",
+      pickup:"안산물류", pickupTime:"14:00",
+      dropoff:"군포센터", dropoffTime:"16:30"},
 };
 const ORDERS = [
   {id:"ORD-20471", driver:"D1", dest:"분당센터"},
@@ -205,8 +211,17 @@ async function startCall(d){
   if(activeDriver){ alert("이미 다른 통화가 진행 중이에요. 먼저 종료해주세요."); return; }
   activeDriver = d;
   state[d]='calling'; liveMsgs[d]=[]; render();
+  const drv = DRIVERS[d];
   try{
-    await vapi.start(ASSISTANT_ID, { variableValues: { driverName: DRIVERS[d].name } });
+    await vapi.start(ASSISTANT_ID, { variableValues: {
+      driverName: drv.name,
+      vehicleNo: drv.vehicleNo || "",
+      tonnage: drv.tonnage || "",
+      pickup: drv.pickup || "",
+      pickupTime: drv.pickupTime || "",
+      dropoff: drv.dropoff || "",
+      dropoffTime: drv.dropoffTime || "",
+    }});
   }catch(e){
     console.error(e); alert("통화 시작 실패: "+e); state[d]='idle'; activeDriver=null; render();
   }
