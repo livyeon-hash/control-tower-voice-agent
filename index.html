@@ -41,6 +41,9 @@
   button:hover{border-color:var(--info);}
   button.call-btn{border-color:var(--info); color:var(--info);}
   button.end-btn{border-color:var(--danger); color:var(--danger);}
+  button.batch-btn{background:var(--info); border-color:var(--info); color:#fff; font-weight:600; font-size:13px; padding:8px 16px;}
+  button.batch-btn:hover{filter:brightness(1.1);}
+  button.batch-btn:disabled{opacity:.5; cursor:not-allowed;}
 
   .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px;}
   .card.tracked{border-left:3px solid var(--success);}
@@ -53,6 +56,9 @@
   .oi-row{display:flex; gap:8px; font-size:12px;}
   .oi-k{color:var(--muted); min-width:44px;}
   .oi-v{color:var(--txt);}
+  .result-zone{margin-top:10px; padding:9px 11px; border-radius:var(--radius-sm); background:var(--success-bg); display:flex; flex-direction:column; gap:3px;}
+  .result-row{display:flex; gap:8px; font-size:13px;}
+  .remark{margin-top:3px; font-size:12px; color:var(--warn); background:var(--warn-bg); padding:5px 9px; border-radius:6px;}
   .eta-ok{color:var(--success);} .eta-no{color:var(--warn);}
 
   .call-zone{margin-top:10px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--panel2); display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px;}
@@ -101,7 +107,10 @@
   </div>
 
   <div class="section">
-    <div class="section-head"><span class="eta-no">●</span> 위치 미확인 — 전화 확인 대상 <span class="sub" id="cnt-untracked"></span></div>
+    <div class="section-head" style="justify-content:space-between;">
+      <span><span class="eta-no">●</span> 위치 미확인 — 전화 확인 대상 <span class="sub" id="cnt-untracked"></span></span>
+      <button class="batch-btn" id="btn-batch" onclick="startBatch()">📞 위치 미확인 기사 일괄 전화</button>
+    </div>
     <div class="grid" id="grid-untracked"></div>
   </div>
 </div>
@@ -123,11 +132,13 @@ const DRIVERS = {
   D4:{name:"최영규", tracked:false,
       vehicleNo:"12가3456", tonnage:"5톤",
       pickup:"평택항", pickupTime:"13:00",
-      dropoff:"인천1센터", dropoffTime:"15:00"},
+      dropoff:"인천1센터", dropoffTime:"15:00",
+      demoLoc:"영동고속도로 여주휴게소 통과", demoEta:"약 40분 뒤", demoRemark:""},
   D5:{name:"정한솔", tracked:false,
       vehicleNo:"78나9012", tonnage:"11톤",
       pickup:"안산물류", pickupTime:"14:00",
-      dropoff:"군포센터", dropoffTime:"16:30"},
+      dropoff:"군포센터", dropoffTime:"16:30",
+      demoLoc:"수원 톨게이트 부근", demoEta:"30분 지연 예상", demoRemark:"전방 사고로 정체 중"},
 };
 const ORDERS = [
   {id:"ORD-20471", driver:"D1", dest:"분당센터"},
@@ -154,7 +165,7 @@ function init(){ untracked().forEach(d=>{ state[d]='idle'; liveMsgs[d]=[]; }); r
 function updateStats(){
   document.getElementById('s-tracked').textContent = tracked().length;
   document.getElementById('s-untracked').textContent = untracked().length;
-  document.getElementById('s-done').textContent = Object.values(state).filter(s=>s==='done').length;
+  document.getElementById('s-done').textContent = Object.values(state).filter(s=>s==='done'||s==='demo-done').length;
   document.getElementById('cnt-tracked').textContent = '('+tracked().length+'명)';
   document.getElementById('cnt-untracked').textContent = '('+untracked().length+'명)';
 }
@@ -195,8 +206,24 @@ function render(){
     } else if(st==='done'){
       h += '<span class="call-state s-done"><span class="dot d-done"></span>통화 완료</span>'
         + '<button data-call="'+d+'">↻ 다시 통화</button>';
+    } else if(st==='demo-calling'){
+      h += '<span class="call-state s-calling blink"><span class="dot d-calling"></span>일괄 통화 중...</span>';
+    } else if(st==='demo-done'){
+      h += '<span class="call-state s-done"><span class="dot d-done"></span>통화 완료 (일괄)</span>'
+        + '<button class="call-btn" data-call="'+d+'">📞 실제 통화</button>';
     }
     h += '</div>';
+
+    // 일괄(데모) 통화 결과 표시
+    if(st==='demo-done'){
+      h += '<div class="result-zone">';
+      h += '<div class="result-row"><span class="oi-k">📍 현재</span><span class="oi-v">'+drv.demoLoc+'</span></div>';
+      h += '<div class="result-row"><span class="oi-k">🕐 도착</span><span class="oi-v">'+drv.demoEta+'</span></div>';
+      if(drv.demoRemark) h += '<div class="remark">⚠ 비고: '+drv.demoRemark+'</div>';
+      h += '</div>';
+    } else if(st==='demo-calling'){
+      h += '<div class="placeholder">AI가 위치를 확인하는 중입니다...</div>';
+    }
 
     const msgs = liveMsgs[d] || [];
     if(msgs.length){
@@ -238,6 +265,24 @@ async function startCall(d){
   }
 }
 function endCall(){ if(vapi) vapi.stop(); }
+
+// 일괄 전화 (데모 흐름): 미확인 기사들을 순차적으로 통화중→완료로
+async function startBatch(){
+  const btn = document.getElementById('btn-batch');
+  btn.disabled = true;
+  const wait = (ms)=> new Promise(r=>setTimeout(r,ms));
+  const targets = untracked().filter(d=> state[d]!=='calling');
+  // 약간의 시차를 두고 동시에 통화중으로 전환
+  for(const d of targets){ state[d]='demo-calling'; }
+  render();
+  // 한 명씩 완료 처리
+  for(const d of targets){
+    await wait(1200 + Math.random()*1500);
+    state[d]='demo-done';
+    render();
+  }
+  btn.disabled = false;
+}
 
 if(vapi){
   vapi.on('message', (m)=>{
